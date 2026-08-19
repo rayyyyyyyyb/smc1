@@ -4,11 +4,15 @@ import gzip
 import hashlib
 import json
 from pathlib import Path
-from typing import Any
+from typing import Any, NoReturn
 
 from smc_repro.schemas import InstanceSpec, JobSpec, MachineSpec, OperationSpec
 
 INSTANCE_SCHEMA_VERSION = 1
+
+
+def _reject_json_constant(value: str) -> NoReturn:
+    raise ValueError(f"nonstandard JSON constant is not allowed: {value}")
 
 
 def instance_to_dict(instance: InstanceSpec) -> dict[str, Any]:
@@ -131,8 +135,8 @@ def load_instance(path: Path) -> InstanceSpec:
     path = Path(path)
     try:
         with gzip.open(path, mode="rt", encoding="utf-8") as handle:
-            data = json.load(handle)
-    except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
+            data = json.load(handle, parse_constant=_reject_json_constant)
+    except (OSError, UnicodeDecodeError, ValueError) as exc:
         raise ValueError(f"failed to read instance file {path}: {exc}") from exc
     if not isinstance(data, dict):
         raise ValueError("instance JSON root must be an object")

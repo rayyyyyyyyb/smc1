@@ -1,6 +1,7 @@
 import random
 
 import numpy as np
+import pytest
 
 from smc_repro.instance_generator import generate_legacy_instance
 
@@ -42,3 +43,16 @@ def test_generator_does_not_change_global_rng_state() -> None:
     _generate()
     assert random.random() == expected_py
     assert float(np.random.random()) == expected_np
+
+
+@pytest.mark.parametrize("value", [float("nan"), float("inf"), -float("inf")])
+def test_generator_rejects_non_finite_mean_interarrival(value: float) -> None:
+    with pytest.raises(ValueError, match="mean_interarrival.*finite"):
+        generate_legacy_instance(
+            instance_id="bad-scale",
+            instance_seed=101,
+            failure_seed=201,
+            machine_count=8,
+            new_job_count=10,
+            mean_interarrival=value,
+        )

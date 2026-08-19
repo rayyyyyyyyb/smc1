@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass, field
 from enum import StrEnum
 from typing import Any
@@ -24,6 +25,8 @@ class OperationSpec:
         eligible = [value for value in self.proc_times if value is not None]
         if not eligible:
             raise ValueError("operation must have at least one eligible machine")
+        if any(not math.isfinite(value) for value in eligible):
+            raise ValueError("eligible processing times must be finite")
         if any(value is not None and value <= 0 for value in self.proc_times):
             raise ValueError("eligible processing times must be positive")
 
@@ -54,6 +57,11 @@ class JobSpec:
     def __post_init__(self) -> None:
         if self.job_id < 0:
             raise ValueError("job_id must be non-negative")
+        if not all(
+            math.isfinite(value)
+            for value in (self.arrival_time, self.due_date, self.weight)
+        ):
+            raise ValueError("arrival_time, due_date, and weight must be finite")
         if self.arrival_time < 0:
             raise ValueError("arrival_time must be non-negative")
         if self.due_date < self.arrival_time:
@@ -81,6 +89,17 @@ class MachineSpec:
     def __post_init__(self) -> None:
         if self.machine_id < 0:
             raise ValueError("machine_id must be non-negative")
+        if not all(
+            math.isfinite(value)
+            for value in (
+                self.setup_time,
+                self.cm_duration,
+                self.eta,
+                self.beta,
+                self.pm_duration_ratio,
+            )
+        ):
+            raise ValueError("machine duration and Weibull fields must be finite")
         if self.setup_time < 0 or self.cm_duration <= 0:
             raise ValueError("invalid setup or corrective-maintenance duration")
         if self.eta <= 0 or self.beta <= 0:
@@ -135,6 +154,8 @@ class ScheduleInterval:
     def __post_init__(self) -> None:
         if self.machine_id < 0:
             raise ValueError("machine_id must be non-negative")
+        if not math.isfinite(self.start) or not math.isfinite(self.end):
+            raise ValueError("interval start and end must be finite")
         if self.start < 0:
             raise ValueError("start must be non-negative")
         if self.end < self.start:
@@ -142,6 +163,8 @@ class ScheduleInterval:
         if self.interval_type is IntervalType.PROCESS:
             if self.job_id is None or self.op_id is None:
                 raise ValueError("PROCESS interval requires job_id and op_id")
+            if self.end <= self.start:
+                raise ValueError("PROCESS interval duration must be positive")
         elif self.job_id is not None or self.op_id is not None:
             raise ValueError("non-PROCESS intervals must not carry job_id/op_id")
 

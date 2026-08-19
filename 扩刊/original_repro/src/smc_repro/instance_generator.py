@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import math
 import random
 
 import numpy as np
@@ -23,6 +24,8 @@ def generate_legacy_instance(
         raise ValueError("legacy generator requires at least three machines")
     if new_job_count < 0 or initial_job_count <= 0:
         raise ValueError("invalid job counts")
+    if not math.isfinite(mean_interarrival):
+        raise ValueError("mean_interarrival must be finite")
     if mean_interarrival <= 0:
         raise ValueError("mean_interarrival must be positive")
 

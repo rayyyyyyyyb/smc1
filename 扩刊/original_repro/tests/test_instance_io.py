@@ -4,7 +4,7 @@ import json
 import pytest
 
 from smc_repro.instance_generator import generate_legacy_instance
-from smc_repro.instance_io import load_instance, save_instance
+from smc_repro.instance_io import instance_to_dict, load_instance, save_instance
 
 
 def _instance():
@@ -52,4 +52,16 @@ def test_malformed_json_is_rejected(tmp_path) -> None:
     with gzip.open(path, "wt", encoding="utf-8") as handle:
         handle.write('{"schema_version": 1,')
     with pytest.raises(ValueError, match="failed to read"):
+        load_instance(path)
+
+
+@pytest.mark.parametrize("value", [float("nan"), float("inf"), -float("inf")])
+def test_nonstandard_json_constants_are_rejected(tmp_path, value: float) -> None:
+    path = tmp_path / "nonstandard.json.gz"
+    payload = instance_to_dict(_instance())
+    payload["metadata"]["nonstandard"] = value
+    with gzip.open(path, "wt", encoding="utf-8") as handle:
+        json.dump(payload, handle)
+
+    with pytest.raises(ValueError, match="nonstandard JSON constant"):
         load_instance(path)

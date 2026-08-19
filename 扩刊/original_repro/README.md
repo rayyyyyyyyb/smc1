@@ -1,7 +1,7 @@
 # SMC Original-Conference Reproduction
 
 This package is the audited, reproducible implementation of the original SMC DL-DDQN study.
-The legacy directories `../code`, `../code1`, and `../code2` are frozen evidence and must not
+The legacy directories `../../code`, `../../code1`, and `../../code2` are frozen evidence and must not
 be edited during the reproduction phase.
 
 ## Environment

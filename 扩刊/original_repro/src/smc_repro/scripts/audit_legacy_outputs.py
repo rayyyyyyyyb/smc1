@@ -6,7 +6,6 @@ import json
 from pathlib import Path
 from typing import Any
 
-
 LEGACY_DIRS = ("code", "code1", "code2")
 
 
