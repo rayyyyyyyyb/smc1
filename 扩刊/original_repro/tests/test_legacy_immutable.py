@@ -4,7 +4,6 @@ import hashlib
 import json
 from pathlib import Path
 
-
 LEGACY_DIRS = ("code", "code1", "code2")
 
 
@@ -17,8 +16,8 @@ def _sha256(path: Path) -> str:
 
 
 def test_legacy_manifest_matches_files() -> None:
-    repo_root = Path(__file__).resolve().parents[3]
-    project_root = repo_root / "扩刊"
+    project_root = Path(__file__).resolve().parents[2]
+    repo_root = project_root.parent
     manifest_path = project_root / "docs" / "audit" / "legacy_manifest.json"
     assert manifest_path.is_file()
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
