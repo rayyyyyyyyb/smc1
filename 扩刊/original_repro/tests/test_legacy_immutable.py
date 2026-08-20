@@ -1,35 +1,42 @@
 from __future__ import annotations
 
-import hashlib
 import json
+import subprocess
 from pathlib import Path
 
-LEGACY_DIRS = ("code", "code1", "code2")
+from smc_repro.scripts import audit_legacy_outputs as audit_module
 
 
-def _sha256(path: Path) -> str:
-    digest = hashlib.sha256()
-    with path.open("rb") as handle:
-        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
-            digest.update(chunk)
-    return digest.hexdigest()
-
-
-def test_legacy_manifest_matches_files() -> None:
+def test_legacy_manifest_matches_files(tmp_path: Path) -> None:
     project_root = Path(__file__).resolve().parents[2]
     repo_root = project_root.parent
-    manifest_path = project_root / "docs" / "audit" / "legacy_manifest.json"
+    manifest_path = project_root / "docs" / "audit" / "legacy_tracked_manifest.json"
     assert manifest_path.is_file()
-    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    clean_diff = subprocess.run(
+        [
+            "git",
+            "-C",
+            str(repo_root),
+            "diff",
+            "--exit-code",
+            "--",
+            "code",
+            "code1",
+            "code2",
+        ],
+        capture_output=True,
+        text=True,
+    )
+    assert clean_diff.returncode == 0, clean_diff.stdout + clean_diff.stderr
+    committed_manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    generated_manifest = audit_module.audit_legacy_outputs(
+        repo_root,
+        tmp_path / "legacy_tracked_manifest.json",
+        audit_module.AuditScope.TRACKED,
+    )
 
-    observed: dict[str, dict[str, object]] = {}
-    for dirname in LEGACY_DIRS:
-        for path in sorted((repo_root / dirname).rglob("*")):
-            if path.is_file():
-                relative_path = path.relative_to(repo_root).as_posix()
-                observed[relative_path] = {
-                    "size_bytes": path.stat().st_size,
-                    "sha256": _sha256(path),
-                }
-
-    assert manifest["files"] == observed
+    assert committed_manifest["scope"] == "tracked"
+    assert generated_manifest == committed_manifest
+    assert all(not key.endswith("PM.txt") for key in committed_manifest["files"])
+    assert all("/__pycache__/" not in key for key in committed_manifest["files"])
+    assert all("/.idea/" not in key for key in committed_manifest["files"])
