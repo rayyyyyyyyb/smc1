@@ -31,6 +31,11 @@ def test_earliest_start_uses_internal_gap() -> None:
     assert timeline.earliest_feasible_start(6.0, 5.0) == 15.0
 
 
+def test_timeline_rejects_zero_duration_search() -> None:
+    with pytest.raises(ValueError, match="positive"):
+        MachineTimeline(0).earliest_feasible_start(0.0, 0.0)
+
+
 def test_initial_intervals_are_validated_for_overlap() -> None:
     intervals = [
         ScheduleInterval(0, 0.0, 5.0, IntervalType.PM),

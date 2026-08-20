@@ -25,6 +25,16 @@ def test_process_interval_rejects_zero_duration() -> None:
         ScheduleInterval(0, 1.0, 1.0, IntervalType.PROCESS, 0, 0)
 
 
+@pytest.mark.parametrize(
+    "interval_type", [IntervalType.SETUP, IntervalType.PM, IntervalType.CM]
+)
+def test_nonprocess_recorded_intervals_require_positive_duration(
+    interval_type: IntervalType,
+) -> None:
+    with pytest.raises(ValueError, match="positive"):
+        ScheduleInterval(0, 2.0, 2.0, interval_type)
+
+
 def test_interval_rejects_negative_duration() -> None:
     with pytest.raises(ValueError, match="end"):
         ScheduleInterval(0, 2.0, 1.0, IntervalType.PM)
@@ -42,6 +52,34 @@ def test_instance_rejects_processing_time_vector_with_wrong_machine_count() -> N
 
     with pytest.raises(ValueError, match="machine count"):
         InstanceSpec("i-1", 1, 2, (job,), machines)
+
+
+def test_instance_metadata_is_defensively_copied_and_read_only() -> None:
+    source = {"generator": "x", "machine_count": 1}
+    instance = InstanceSpec(
+        "immutable",
+        1,
+        2,
+        (JobSpec(0, 0.0, 10.0, 1, (OperationSpec(0, 0, (1.0,)),), 1.0),),
+        (MachineSpec(0, 0.0, 4.0),),
+        source,
+    )
+    source["machine_count"] = 999
+    assert instance.metadata["machine_count"] == 1
+    with pytest.raises(TypeError):
+        instance.metadata["machine_count"] = 2  # type: ignore[index]
+
+
+def test_metadata_rejects_nested_mutable_values() -> None:
+    with pytest.raises(TypeError, match="metadata values"):
+        InstanceSpec(
+            "nested",
+            1,
+            2,
+            (JobSpec(0, 0.0, 10.0, 1, (OperationSpec(0, 0, (1.0,)),), 1.0),),
+            (MachineSpec(0, 0.0, 4.0),),
+            {"bad": [1, 2]},
+        )
 
 
 @pytest.mark.parametrize("value", [float("nan"), float("inf"), -float("inf")])

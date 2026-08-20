@@ -21,7 +21,7 @@ def instance_to_dict(instance: InstanceSpec) -> dict[str, Any]:
         "instance_id": instance.instance_id,
         "instance_seed": instance.instance_seed,
         "failure_seed": instance.failure_seed,
-        "metadata": instance.metadata,
+        "metadata": dict(instance.metadata),
         "machines": [
             {
                 "machine_id": machine.machine_id,

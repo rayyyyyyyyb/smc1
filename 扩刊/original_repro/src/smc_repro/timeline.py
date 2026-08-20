@@ -52,8 +52,8 @@ class MachineTimeline:
     def earliest_feasible_start(self, duration: float, earliest: float) -> float:
         if not math.isfinite(duration) or not math.isfinite(earliest):
             raise ValueError("duration and earliest must be finite")
-        if duration < 0 or earliest < 0:
-            raise ValueError("duration and earliest must be non-negative")
+        if duration <= 0 or earliest < 0:
+            raise ValueError("duration must be positive and earliest must be non-negative")
         cursor = earliest
         for interval in self.ordered():
             if interval.end <= cursor:

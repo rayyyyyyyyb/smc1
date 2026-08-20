@@ -1,8 +1,10 @@
 from __future__ import annotations
 
 import hashlib
+import math
 import os
 import random
+import struct
 
 import numpy as np
 import torch
@@ -27,10 +29,36 @@ def set_global_seed(seed: int, deterministic: bool = True) -> None:
         torch.set_float32_matmul_precision("highest")
 
 
+def _encode_key(value: object) -> bytes:
+    if value is None:
+        tag = b"N"
+        body = b""
+    elif isinstance(value, bool):
+        tag = b"B"
+        body = b"1" if value else b"0"
+    elif isinstance(value, int):
+        tag = b"I"
+        body = str(value).encode("ascii")
+    elif isinstance(value, float):
+        if not math.isfinite(value):
+            raise ValueError("floating-point random-stream keys must be finite")
+        tag = b"F"
+        body = value.hex().encode("ascii")
+    elif isinstance(value, str):
+        tag = b"S"
+        body = value.encode("utf-8")
+    else:
+        raise TypeError(
+            "random-stream keys must be None, bool, int, finite float, or str; "
+            f"got {type(value).__name__}"
+        )
+    return tag + struct.pack(">Q", len(body)) + body
+
+
 def keyed_uniform(base_seed: int, *keys: object) -> float:
     if base_seed < 0:
         raise ValueError("base_seed must be non-negative")
-    payload = "|".join(map(str, (base_seed, *keys))).encode("utf-8")
-    digest = hashlib.blake2b(payload, digest_size=8).digest()
+    payload = b"".join(_encode_key(value) for value in (base_seed, *keys))
+    digest = hashlib.blake2b(payload, digest_size=8, person=b"smc-crn1").digest()
     integer = int.from_bytes(digest, byteorder="big", signed=False)
     return integer / float(1 << 64)

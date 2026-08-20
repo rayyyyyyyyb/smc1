@@ -1,9 +1,28 @@
 from __future__ import annotations
 
 import math
+from collections.abc import Mapping
 from dataclasses import dataclass, field
 from enum import StrEnum
-from typing import Any
+from types import MappingProxyType
+from typing import TypeAlias
+
+MetadataScalar: TypeAlias = str | int | float | bool | None
+
+
+def _freeze_metadata(
+    metadata: Mapping[str, MetadataScalar],
+) -> Mapping[str, MetadataScalar]:
+    copied: dict[str, MetadataScalar] = {}
+    for key, value in metadata.items():
+        if not isinstance(key, str):
+            raise TypeError("metadata keys must be strings")
+        if value is not None and not isinstance(value, (str, int, float, bool)):
+            raise TypeError("metadata values must be JSON scalar values")
+        if isinstance(value, float) and not math.isfinite(value):
+            raise ValueError("floating-point metadata values must be finite")
+        copied[key] = value
+    return MappingProxyType(copied)
 
 
 class IntervalType(StrEnum):
@@ -119,7 +138,7 @@ class InstanceSpec:
     failure_seed: int
     jobs: tuple[JobSpec, ...]
     machines: tuple[MachineSpec, ...]
-    metadata: dict[str, Any] = field(default_factory=dict)
+    metadata: Mapping[str, MetadataScalar] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
         if not self.instance_id:
@@ -139,6 +158,7 @@ class InstanceSpec:
             for operation in job.operations:
                 if len(operation.proc_times) != machine_count:
                     raise ValueError("processing-time vectors must match machine count")
+        object.__setattr__(self, "metadata", _freeze_metadata(self.metadata))
 
 
 @dataclass(frozen=True)
@@ -149,7 +169,7 @@ class ScheduleInterval:
     interval_type: IntervalType
     job_id: int | None = None
     op_id: int | None = None
-    metadata: dict[str, Any] = field(default_factory=dict)
+    metadata: Mapping[str, MetadataScalar] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
         if self.machine_id < 0:
@@ -158,15 +178,14 @@ class ScheduleInterval:
             raise ValueError("interval start and end must be finite")
         if self.start < 0:
             raise ValueError("start must be non-negative")
-        if self.end < self.start:
-            raise ValueError("end must be greater than or equal to start")
+        if self.end <= self.start:
+            raise ValueError("interval end must be greater than start; duration must be positive")
         if self.interval_type is IntervalType.PROCESS:
             if self.job_id is None or self.op_id is None:
                 raise ValueError("PROCESS interval requires job_id and op_id")
-            if self.end <= self.start:
-                raise ValueError("PROCESS interval duration must be positive")
         elif self.job_id is not None or self.op_id is not None:
             raise ValueError("non-PROCESS intervals must not carry job_id/op_id")
+        object.__setattr__(self, "metadata", _freeze_metadata(self.metadata))
 
     @property
     def duration(self) -> float:
