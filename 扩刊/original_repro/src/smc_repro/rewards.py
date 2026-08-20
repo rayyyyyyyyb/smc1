@@ -39,6 +39,21 @@ def paper_utilization_reward(previous: float, current: float) -> int:
     return -1
 
 
+def legacy_joint_reward(
+    previous: ScheduleObservation,
+    current: ScheduleObservation,
+) -> int:
+    if current.tr_ave < previous.tr_ave:
+        return 1
+    if current.tr_ave < previous.tr_ave * 1.1:
+        return 0
+    if current.u_ave > previous.u_ave:
+        return 1
+    if current.u_ave > previous.u_ave * 0.9:
+        return 0
+    return -1
+
+
 def transition_reward(
     profile: ReproductionProfile,
     mode: RewardMode,
