@@ -25,21 +25,25 @@ python -m mypy src/smc_repro
 python -m smc_repro.scripts.verify_hardware
 ```
 
-## Data
+## Original-conference data preparation
 
-The original SMC conference reproduction uses only programmatically generated synthetic dynamic-FJSP instances. Do not download Brandimarte, Hurink, OR-Library, Taillard, or other external benchmark sets in this phase. Those benchmarks belong to the later GNN-upgrade evaluation and must not be mixed into the original-paper results.
+The original SMC study uses synthetic instances; no public benchmark download is required for
+this reproduction phase. The repository commits the reference manifest, not the 1540 compressed
+instances. Generate and verify them locally before preflight with the commands below.
 
-The reference manifest is committed at `artifacts/banks/release/manifest.json`; the 1540 gzip
-instance files are generated locally. The expected reference-manifest SHA-256 is fixed at
+The expected reference-manifest SHA-256 is fixed at
 `68a2fd2420a8710743b28db1b234b69dc2ecf96046d14950abac22cee7cd1515`.
-External benchmark data remains deferred to the later GNN phase. Every formal run must record
-the bank-manifest SHA in its provenance.
+Brandimarte, Hurink, OR-Library, Taillard, and all other external benchmarks are explicitly
+deferred until the later GNN-generalization phase; they must not be downloaded or mixed into the
+original-conference reproduction.
 
 PowerShell:
 
 ```powershell
-cd 扩刊\original_repro
-Remove-Item -Recurse -Force artifacts\banks\materialized -ErrorAction SilentlyContinue
+$repo = (git rev-parse --show-toplevel).Trim()
+Set-Location "$repo\扩刊\original_repro"
+$env:PYTHONHASHSEED = "0"
+$env:CUBLAS_WORKSPACE_CONFIG = ":4096:8"
 python -m smc_repro.scripts.build_instance_banks `
   --output-root artifacts\banks\materialized `
   --test-repetitions 20 `
@@ -51,13 +55,27 @@ python -m smc_repro.scripts.verify_instance_bank `
   --bank-root artifacts\banks\materialized `
   --expected-manifest-sha256 68a2fd2420a8710743b28db1b234b69dc2ecf96046d14950abac22cee7cd1515 `
   --report artifacts\preflight\bank_verification.json
+python -m smc_repro.scripts.preflight `
+  --repo-root ..\.. `
+  --bank-root artifacts\banks\materialized `
+  --reference-manifest artifacts\banks\release\manifest.json `
+  --environment-metadata ..\docs\audit\environment_5090_resolved.json `
+  --output artifacts\preflight\preflight_report.json `
+  --device cuda:0
+$pythonExe = (Get-Command python).Source
+python -m smc_repro.scripts.clean_worktree_gate `
+  --repo-root ..\.. `
+  --python-executable $pythonExe `
+  --report artifacts\preflight\clean_worktree_report.json
 ```
 
 Bash:
 
 ```bash
-cd 扩刊/original_repro
-rm -rf artifacts/banks/materialized
+repo="$(git rev-parse --show-toplevel)"
+cd "$repo/扩刊/original_repro"
+export PYTHONHASHSEED=0
+export CUBLAS_WORKSPACE_CONFIG=:4096:8
 python -m smc_repro.scripts.build_instance_banks \
   --output-root artifacts/banks/materialized \
   --test-repetitions 20 \
@@ -69,4 +87,15 @@ python -m smc_repro.scripts.verify_instance_bank \
   --bank-root artifacts/banks/materialized \
   --expected-manifest-sha256 68a2fd2420a8710743b28db1b234b69dc2ecf96046d14950abac22cee7cd1515 \
   --report artifacts/preflight/bank_verification.json
+python -m smc_repro.scripts.preflight \
+  --repo-root ../.. \
+  --bank-root artifacts/banks/materialized \
+  --reference-manifest artifacts/banks/release/manifest.json \
+  --environment-metadata ../docs/audit/environment_5090_resolved.json \
+  --output artifacts/preflight/preflight_report.json \
+  --device cuda:0
+python -m smc_repro.scripts.clean_worktree_gate \
+  --repo-root ../.. \
+  --python-executable "$(command -v python)" \
+  --report artifacts/preflight/clean_worktree_report.json
 ```

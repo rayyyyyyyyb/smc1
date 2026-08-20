@@ -20,6 +20,7 @@ PM.txt
 扩刊/original_repro/artifacts/banks/**/*.json.gz
 扩刊/original_repro/artifacts/banks/materialized/
 扩刊/original_repro/artifacts/preflight/bank_verification.json
+扩刊/original_repro/artifacts/preflight/
 扩刊/original_repro/artifacts/runs/
 扩刊/original_repro/artifacts/summaries/
 扩刊/original_repro/artifacts/figures/
