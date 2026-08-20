@@ -203,3 +203,82 @@
 188. 第一次真实P00–P15在同一genuine clone以 `cuda:0` 启动，HEAD为 `1bccdedd119f2e443f9630453078e5541bfb8c28`；命令10.979630秒后exit 1，按首错即停写出 `status=failed` 报告，报告git_commit正确、gate计数7，P00–P05通过而P06失败，最后消息为 `environment_metadata_path must be repository-relative`。完整stack显示 `_PreflightRunner.p06 -> contract -> build_run_contract -> _repository_relative_posix_path`，调用方把runner内已解析的绝对环境metadata路径传给只接受repository-relative路径的contract builder；failed report已在raise前持久化。依照systematic-debugging与Phase B stop rule，立即停止后续P00–P15及real clean gate，不进入docs evidence commit，先只做根因追踪、保留失败证据并向控制器回报。
 189. 控制器复核failed report与调用链后确认单一根因成立并授权回到TDD：新增真实 `_PreflightRunner.contract` 边界回归，以绝对runtime环境路径构造runner但要求RunContract中保存literal POSIX repo-relative `扩刊/docs/audit/environment_5090_resolved.json`。首轮5090测试因夹具误写不存在的 `configs/profiles/paper_repro.yaml` 在到达被测边界前失败，属于无效RED；修正为tracked `configs/paper_repro.yaml` 后得到目标 `1 failed, 30 deselected`，stack精确显示absolute Path被builder拒绝。最小实现只在caller把 `self.environment_metadata.relative_to(self.repo_root)` 传给 `build_run_contract`，未放宽RunContract validator；目标GREEN为 `1 passed, 30 deselected in 4.92s`。5090 staging随后fresh focused为 `31 passed in 8.22s`、full为 `620 passed in 20.96s`，Ruff全src/tests通过、mypy 34源文件零问题、compileall exit 0。本次修复后严格不续跑genuine clone/P00–P15，先amend同一Phase A实现提交并请求独立复审。
 190. Phase B P06 caller修复首次amend得到 `07c271df99acf1d536489a43357898ac7e639d2f`，提交主题仍精确为 `test: add clean-clone and end-to-end preflight gates`，相对Task 8仍只有一个Task 9实现提交且尚无docs evidence commit。为使本条实际amend动作也进入累计日志，随后仅再次amend同一提交纳入本条；产品语义不再变化，不更新或续跑genuine clone，不运行真实P00–P15/clean gate，不push，最终amended SHA交由独立复审。
+191. 独立复审完成对amended Phase A候选 `819881fd85104f7923c78c4d359ac7c47d464389` 的检查，Critical/Important/Minor均为0、`Ready to restart Phase B: Yes`；复审确认runner contract回归经过有效RED、caller相对路径修复最小且未放宽RunContract validator。控制器明确批准从该SHA的新建genuine clean clone重新执行Step 10全序列，禁止从旧clone/P00–P05续跑；任一真实gate再次失败必须持久化/回传/停止并做root-cause报告，只有全序列通过后才允许写pre-log evidence与docs-only commit。
+192. 为获批的Phase B全序列重启生成complete-history bundle，包含 `819881fd85104f7923c78c4d359ac7c47d464389`，文件537577字节、SHA-256 `78a952986c7ffaa0161561746254fce10224cdf78b262ffd5d34bcf96bbf999b`。在5090新建从未存在的genuine clone `C:\Users\LXT\smc_task9_phaseb_clean_819881f_20260820`；再次核对复用ignored archive SHA为 `9a51f26c3e3c87122dfa6d07e7e32d3503a72a430b74e7bc9c704ebc48b22648`。复制产物前后clone HEAD均为 `819881fd85104f7923c78c4d359ac7c47d464389`、status计数0；ignored materialized为1540 gzip/1541文件、manifest SHA固定 `68a2fd2420a8710743b28db1b234b69dc2ecf96046d14950abac22cee7cd1515`，Task 8 smoke为18文件，tracked generated计数0。portable Git clone仍仅输出已记录的missing templates warning。
+193. 在fresh genuine clone `819881fd85104f7923c78c4d359ac7c47d464389` 从Step 10第一项重新执行而非续跑：显式远端Python、clone PYTHONPATH、`PYTHONHASHSEED=0`、`CUBLAS_WORKSPACE_CONFIG=:4096:8`。full pytest为 `620 passed in 19.89s`、命令计时21.344895秒；Ruff全src/tests通过、0.177098秒；mypy 34源文件零问题、24.658976秒；compileall exit 0、0.256241秒；hardware exit 0、3.664482秒，仍为Python3.11.16/RTX5090/torch2.10.0+cu128/CUDA12.8/capability12.0/sm_120/result14.0；bank verifier exit0、13.053212秒，expected=verified=1540、双manifest SHA固定且ok=true。六项结束后clone status计数0，准许继续本轮P00–P15。
+194. 在同一fresh genuine clone继续Step 10固定顺序的真实CUDA门禁。P00–P15以 `cuda:0` 执行，exit 0、188.182978秒；`preflight_report.json` 为schema 1、`status=passed`、git commit `819881fd85104f7923c78c4d359ac7c47d464389`，P00–P15共16项按固定顺序全部通过，产生59个episode、6次checkpoint round-trip、12项determinism check、9项generated-artifact evidence且warnings为0。随后真实clean-worktree gate exit 0、49.629332秒；报告同样target该HEAD并为 `status=passed`，顺序执行5条命令，cleanup记录1条且temporary detached worktree确认已移除。门禁结束后源clone `git status --short` 仍为空。
+195. 完成Step 11产物回传与独立核验。5090将完整ignored preflight目录打包为 `task9-phaseb-prelog-819881f.tar.gz`，文件4753390字节、SHA-256 `a19c5ff1ce3047ced326bedef5b2bb4f0e0047e8852a6690389e8d26b0f01eae`；本地使用Python标准库先验证33个tar entry全部严格位于 `扩刊/original_repro/artifacts/preflight/`、无绝对路径或 `..`，再解包到对应ignored路径，共29个文件、32605569字节。独立标准库JSON校验（不导入项目代码）确认：报告schema/status/HEAD/P00–P15顺序与evidence hashes正确；1540/1540且双manifest SHA为固定 `68a2fd2420a8710743b28db1b234b69dc2ecf96046d14950abac22cee7cd1515`；live Python/RTX5090/torch/CUDA环境匹配；59个episode中non-learning composite 18、classical 5、training smoke 24、evaluation 12，deep smoke 18、tabular smoke 6；所有evaluation epsilon均为0；6次checkpoint完整恢复next-decision/replay/update/tensor；12项determinism均字节相等；scientific payload独立重算为 `47888625cdbde7c37c8923595d8146c785d770f10884a0fc647668da54653e29`。完整preflight文件SHA-256为 `1261513cc3a92b6c6f2a404d9a26ecaf6911627b38da69220ab3ab7ac6e9ac87`；完整clean-worktree文件SHA-256为 `afc52b63e9bc035b7b8d5cdd48d92355e8474bf7f818b872e17019739c3920d4`，其排除非确定字段后独立重算的内部report SHA为 `ec79e54fae8cc6d216508374c7f0230c00b3ff70100190d27d01cdeba209dd06`。clean报告5条命令的exit/hash/duration、cleanup、legacy snapshot相等和内部SHA全部匹配；remote legacy diff为0、tracked generated为0、Git status为空。本地Git只显示本次累计 `all.md` 修改，回传产物保持ignored。
+196. Step 12要求的pre-log-commit evidence按原字段逐项记录如下；这些值明确属于docs evidence commit的父提交，final docs HEAD将在提交后重新运行两道门禁，不以amend追逐自引用hash。
+
+    ```text
+    starting HEAD and ending HEAD
+    starting HEAD: 863027cf015ae563b6baced766315305d116cac7
+    ending HEAD: 819881fd85104f7923c78c4d359ac7c47d464389
+
+    all Task 0-Task 9 commit SHAs and subjects
+    Task 0: 36e4a6ee205f9f6c7e37ecdbf51b82cc4e849588 fix: make legacy audit portable across clean clones
+    Task 1: 6edac6521519618f1294d46f0e58c1025fae4c65 fix: harden deterministic streams and immutable schemas
+    Task 2: c03e15322ca06e3d5e677191a609ae4d14010d2d fix: enforce maintenance semantics and bounded metrics
+    Task 3: ba4ec24d7ea3c850b36874c41c5ad7749539082d feat: materialize verified banks and capture runtime metadata
+    Task 4: d5c629362e59f0eebf0f5bb9f66fb60fac5081ea feat: lock strict SMC reproduction profiles
+    Task 5: c78f512ecdf617f5d101ae4bd79eb991f5fd72b0 feat: add named scheduling state and reward profiles
+    Task 6: 629331f37cfe38f15e71359959ab386b9418ba7b feat: add audited SMC dispatching rule libraries
+    Task 7: 434ee29f12ca368dd5c578bc2dd7b0be42cc1c43 feat: add profile-controlled SMC scheduling environment
+    Task 8: 863027cf015ae563b6baced766315305d116cac7 feat: add reproducible SMC value and tabular agents
+    Task 9: 819881fd85104f7923c78c4d359ac7c47d464389 test: add clean-clone and end-to-end preflight gates
+
+    pytest total/pass/fail and duration
+    total: 620
+    pass: 620
+    fail: 0
+    pytest-reported duration: 19.89 s
+    outer command duration: 21.344895 s
+
+    Ruff/mypy/compileall results
+    Ruff: passed, All checks passed!, duration 0.177098 s
+    mypy: passed, 34 source files and 0 issues, duration 24.658976 s
+    compileall: passed, exit 0, duration 0.256241 s
+
+    live GPU/torch/CUDA details
+    Python: 3.11.16
+    platform: Windows 10.0.26200
+    GPU: NVIDIA GeForce RTX 5090
+    torch: 2.10.0+cu128
+    CUDA runtime: 12.8
+    cuda_available: true
+    compute capability: 12.0
+    compiled arches: includes sm_120
+    CUDA tensor result: 14.0
+
+    reference manifest SHA and 1540/1540 verification
+    reference manifest SHA-256: 68a2fd2420a8710743b28db1b234b69dc2ecf96046d14950abac22cee7cd1515
+    generated manifest SHA-256: 68a2fd2420a8710743b28db1b234b69dc2ecf96046d14950abac22cee7cd1515
+    expected/verified: 1540/1540
+    verification status: ok=true
+
+    pre-log HEAD and its preflight scientific payload SHA
+    pre-log HEAD: 819881fd85104f7923c78c4d359ac7c47d464389
+    preflight scientific payload SHA-256: 47888625cdbde7c37c8923595d8146c785d770f10884a0fc647668da54653e29
+    independent full preflight report file SHA-256: 1261513cc3a92b6c6f2a404d9a26ecaf6911627b38da69220ab3ab7ac6e9ac87
+
+    pre-log clean-worktree report SHA
+    canonical clean-worktree report SHA-256: ec79e54fae8cc6d216508374c7f0230c00b3ff70100190d27d01cdeba209dd06
+    independent full clean-worktree report file SHA-256: afc52b63e9bc035b7b8d5cdd48d92355e8474bf7f818b872e17019739c3920d4
+
+    number of deep/tabular smoke episodes
+    deep smoke episodes: 18
+    tabular smoke episodes: 6
+
+    checkpoint round-trip count
+    checkpoint round-trips: 6
+
+    all deviations from this plan
+    1. Phase B首次在已获批1bccdedd HEAD的genuine clone运行时P06因caller传绝对environment metadata路径失败；failed report在raise前持久化，立即停止且未运行后续P07-P15/clean gate/docs commit。按systematic-debugging和TDD新增有效RED、最小caller修复、620-test全回归与独立零finding复审后，amend原Task 9实现提交为819881fd，并从全新clone重启整个Step 10；没有续跑旧clone。
+    2. P06回归的第一个夹具误用不存在profile，未到达目标边界，明确标为无效RED；修正夹具后才取得目标RED，不把无效运行计作功能证据。
+    3. 5090未提供系统Git，按已批准portable Git加本地complete-history bundle创建真实clone；portable Git仅产生missing templates目录warning，clone、HEAD、status与后续门禁未受影响。
+    4. 权威计划示例为Bash；5090是Windows PowerShell 5.1，因此使用语义等价的PowerShell、显式Python与clone PYTHONPATH执行，环境变量和参数保持不变。
+
+    all remaining issues
+    none within pre-experiment readiness scope. The 540-instance formal method loop, formal sweep, aggregation, statistics, plots, external benchmarks, GNN/PPO and push are intentionally not performed in this task.
+    ```
+197. docs evidence提交前只读核验通过：`git diff --check` exit 0；`git status --short --untracked-files=all` 只列出tracked `扩刊/all.md`；相对Task 8基线的 `code/`、`code1/`、`code2/` 零diff；Git跟踪的materialized bank、preflight、checkpoint、smoke生成产物计数0；相对Task 8当前仅有Task 9实现提交 `819881fd85104f7923c78c4d359ac7c47d464389 test: add clean-clone and end-to-end preflight gates`。下一步严格只暂存本日志并以精确主题 `docs: archive pre-experiment readiness evidence` 创建第二个且最后一个Task 9提交；提交后的final-HEAD门禁证据按权威计划保留在ignored报告与外部交接中，不amend该自引用evidence commit、不push。
