@@ -1,3 +1,5 @@
+import pytest
+
 from smc_repro.schemas import (
     InstanceSpec,
     IntervalType,
@@ -100,9 +102,98 @@ def test_validator_reports_process_process_machine_overlap() -> None:
 def test_validator_reports_process_maintenance_machine_overlap() -> None:
     intervals = [
         ScheduleInterval(0, 2.0, 5.0, IntervalType.PROCESS, 0, 0),
-        ScheduleInterval(0, 4.0, 7.0, IntervalType.PM),
+        ScheduleInterval(0, 4.0, 9.0, IntervalType.PM),
     ]
 
     report = validate_schedule(_instance(), intervals, require_complete=False)
 
     assert any("machine 0 overlap" in error for error in report.errors)
+
+
+@pytest.mark.parametrize(
+    ("interval_type", "end", "error_substring"),
+    [
+        (IntervalType.SETUP, 2.0, "setup duration"),
+        (IntervalType.PM, 4.0, "PM duration"),
+        (IntervalType.CM, 9.0, "CM duration"),
+    ],
+)
+def test_validator_rejects_semantic_duration_mismatch(
+    interval_type: IntervalType,
+    end: float,
+    error_substring: str,
+) -> None:
+    interval = ScheduleInterval(0, 0.0, end, interval_type)
+
+    report = validate_schedule(_instance(), [interval], require_complete=False)
+
+    assert any(error_substring in error for error in report.errors)
+
+
+@pytest.mark.parametrize(
+    ("interval_type", "expected_duration"),
+    [
+        (IntervalType.SETUP, 1.0),
+        (IntervalType.PM, 5.0),
+        (IntervalType.CM, 10.0),
+    ],
+)
+def test_validator_allows_semantic_duration_within_tolerance(
+    interval_type: IntervalType,
+    expected_duration: float,
+) -> None:
+    interval = ScheduleInterval(
+        0,
+        0.0,
+        expected_duration + 5e-10,
+        interval_type,
+    )
+
+    report = validate_schedule(_instance(), [interval], require_complete=False)
+
+    assert report.ok
+
+
+@pytest.mark.parametrize(
+    ("interval_type", "end"),
+    [
+        (IntervalType.SETUP, 10.0),
+        (IntervalType.PM, 14.0),
+        (IntervalType.CM, 19.0),
+    ],
+)
+def test_complete_schedule_rejects_nonprocess_after_final_process_horizon(
+    interval_type: IntervalType,
+    end: float,
+) -> None:
+    intervals = [
+        ScheduleInterval(0, 2.0, 5.0, IntervalType.PROCESS, 0, 0),
+        ScheduleInterval(1, 5.0, 9.0, IntervalType.PROCESS, 0, 1),
+        ScheduleInterval(0, 9.0, end, interval_type),
+    ]
+
+    report = validate_schedule(_instance(), intervals, require_complete=True)
+
+    assert any("after final process horizon" in error for error in report.errors)
+
+
+def test_complete_schedule_with_zero_setup_time_needs_no_setup_interval() -> None:
+    base = _instance()
+    instance = InstanceSpec(
+        base.instance_id,
+        base.instance_seed,
+        base.failure_seed,
+        base.jobs,
+        (
+            MachineSpec(0, 0.0, 10.0),
+            MachineSpec(1, 0.0, 10.0),
+        ),
+    )
+    intervals = [
+        ScheduleInterval(0, 2.0, 5.0, IntervalType.PROCESS, 0, 0),
+        ScheduleInterval(1, 5.0, 9.0, IntervalType.PROCESS, 0, 1),
+    ]
+
+    report = validate_schedule(instance, intervals, require_complete=True)
+
+    assert report.ok

@@ -15,6 +15,8 @@ class ScheduleMetrics:
     mean_tardiness: float
     weighted_tardiness: float
     tardy_rate: float
+    on_time_rate: float
+    mean_flow_time: float
     paper_uave: float
     standard_utilization: float
     availability_adjusted_utilization: float
@@ -22,8 +24,18 @@ class ScheduleMetrics:
     total_setup_time: float
     total_pm_time: float
     total_cm_time: float
+    total_downtime: float
     pm_count: int
     cm_count: int
+    failure_count: int
+
+
+def duration_within_horizon(interval: ScheduleInterval, horizon: float) -> float:
+    if horizon < 0:
+        raise ValueError("horizon must be non-negative")
+    left = max(0.0, interval.start)
+    right = min(horizon, interval.end)
+    return max(0.0, right - left)
 
 
 def compute_schedule_metrics(
@@ -63,18 +75,22 @@ def compute_schedule_metrics(
         job.weight * tardiness_by_job[job.job_id] for job in instance.jobs
     )
     tardy_rate = sum(value > 1e-9 for value in tardiness_by_job.values()) / len(instance.jobs)
+    on_time_rate = 1.0 - tardy_rate
+    mean_flow_time = sum(
+        job_completions[job.job_id] - job.arrival_time for job in instance.jobs
+    ) / len(instance.jobs)
     paper_trave = sum(
         tardiness_by_job[job.job_id] / max(process_by_job[job.job_id], 1e-12)
         for job in instance.jobs
     ) / len(instance.jobs)
 
     process_time = sum(
-        interval.duration
+        duration_within_horizon(interval, makespan)
         for interval in schedule
         if interval.interval_type is IntervalType.PROCESS
     )
     setup_time = sum(
-        interval.duration
+        duration_within_horizon(interval, makespan)
         for interval in schedule
         if interval.interval_type is IntervalType.SETUP
     )
@@ -84,8 +100,13 @@ def compute_schedule_metrics(
     cm_intervals = tuple(
         interval for interval in schedule if interval.interval_type is IntervalType.CM
     )
-    pm_time = sum(interval.duration for interval in pm_intervals)
-    cm_time = sum(interval.duration for interval in cm_intervals)
+    pm_time = sum(
+        duration_within_horizon(interval, makespan) for interval in pm_intervals
+    )
+    cm_time = sum(
+        duration_within_horizon(interval, makespan) for interval in cm_intervals
+    )
+    total_downtime = pm_time + cm_time
 
     per_machine_paper_utilization: list[float] = []
     for machine in instance.machines:
@@ -95,8 +116,14 @@ def compute_schedule_metrics(
             if interval.machine_id == machine.machine_id
             and interval.interval_type is IntervalType.PROCESS
         )
-        busy = sum(interval.duration for interval in machine_process)
-        final_process_end = max((interval.end for interval in machine_process), default=0.0)
+        busy = sum(
+            duration_within_horizon(interval, makespan)
+            for interval in machine_process
+        )
+        final_process_end = min(
+            makespan,
+            max((interval.end for interval in machine_process), default=0.0),
+        )
         per_machine_paper_utilization.append(
             0.0 if final_process_end <= 0.0 else busy / final_process_end
         )
@@ -105,9 +132,19 @@ def compute_schedule_metrics(
     total_capacity = len(instance.machines) * makespan
     standard_utilization = 0.0 if total_capacity <= 0 else process_time / total_capacity
     available_capacity = total_capacity - setup_time - pm_time - cm_time
-    availability_adjusted_utilization = (
-        0.0 if available_capacity <= 0 else process_time / available_capacity
-    )
+    if available_capacity <= 0:
+        raise ValueError(
+            f"available capacity must be positive: {available_capacity}"
+        )
+    availability_adjusted_utilization = process_time / available_capacity
+
+    for name, value in (
+        ("paper_uave", paper_uave),
+        ("standard_utilization", standard_utilization),
+        ("availability_adjusted_utilization", availability_adjusted_utilization),
+    ):
+        if not 0.0 <= value <= 1.0 + 1e-9:
+            raise ValueError(f"{name} is outside [0, 1]: {value}")
 
     return ScheduleMetrics(
         makespan=makespan,
@@ -116,6 +153,8 @@ def compute_schedule_metrics(
         mean_tardiness=mean_tardiness,
         weighted_tardiness=weighted_tardiness,
         tardy_rate=tardy_rate,
+        on_time_rate=on_time_rate,
+        mean_flow_time=mean_flow_time,
         paper_uave=paper_uave,
         standard_utilization=standard_utilization,
         availability_adjusted_utilization=availability_adjusted_utilization,
@@ -123,6 +162,8 @@ def compute_schedule_metrics(
         total_setup_time=setup_time,
         total_pm_time=pm_time,
         total_cm_time=cm_time,
+        total_downtime=total_downtime,
         pm_count=len(pm_intervals),
         cm_count=len(cm_intervals),
+        failure_count=len(cm_intervals),
     )

@@ -33,6 +33,29 @@ def validate_schedule(
             errors.append(f"negative interval duration: {interval}")
         by_machine[interval.machine_id].append(interval)
 
+        machine = instance.machines[interval.machine_id]
+        if interval.interval_type is IntervalType.SETUP:
+            expected_duration = machine.setup_time
+            label = "setup duration"
+        elif interval.interval_type is IntervalType.PM:
+            expected_duration = machine.pm_duration
+            label = "PM duration"
+        elif interval.interval_type is IntervalType.CM:
+            expected_duration = machine.cm_duration
+            label = "CM duration"
+        else:
+            expected_duration = None
+            label = ""
+
+        if (
+            expected_duration is not None
+            and abs(interval.duration - expected_duration) > 1e-9
+        ):
+            errors.append(
+                f"{label} mismatch on machine {interval.machine_id}: "
+                f"{interval.duration} != {expected_duration}"
+            )
+
         if interval.interval_type is not IntervalType.PROCESS:
             continue
         assert interval.job_id is not None and interval.op_id is not None
@@ -86,6 +109,26 @@ def validate_schedule(
 
     for key in sorted(set(process_by_operation) - expected):
         errors.append(f"unexpected operation {key}")
+
+    if require_complete:
+        process_horizon = max(
+            (
+                interval.end
+                for interval in schedule
+                if interval.interval_type is IntervalType.PROCESS
+            ),
+            default=0.0,
+        )
+        for interval in schedule:
+            if (
+                interval.interval_type is not IntervalType.PROCESS
+                and interval.end > process_horizon + 1e-9
+            ):
+                errors.append(
+                    f"{interval.interval_type.value} interval on machine "
+                    f"{interval.machine_id} ends after final process horizon: "
+                    f"{interval.end} > {process_horizon}"
+                )
 
     unique_intervals = {
         key: values[0]
