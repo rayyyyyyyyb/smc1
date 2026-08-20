@@ -45,6 +45,13 @@ class MachineTimeline:
             key=lambda item: (item.start, item.end, item.interval_type.value)
         )
 
+    def replace_intervals_for_transaction(
+        self,
+        intervals: Iterable[ScheduleInterval],
+    ) -> None:
+        replacement = MachineTimeline(self.machine_id, intervals)
+        self._intervals = list(replacement.intervals)
+
     @property
     def available_time(self) -> float:
         return max((interval.end for interval in self._intervals), default=0.0)

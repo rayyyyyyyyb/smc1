@@ -40,6 +40,14 @@ class ScheduleRuntime:
     def validate(self) -> None:
         job_count = len(self.instance.jobs)
         machine_count = len(self.instance.machines)
+        for name in (
+            "next_op_index",
+            "timelines",
+            "machines",
+            "last_machine_by_job",
+        ):
+            if type(getattr(self, name)) is not list:
+                raise ValueError(f"{name} must be a list")
         if len(self.next_op_index) != job_count:
             raise ValueError("next_op_index must contain one entry per job")
         for job, next_op_index in zip(self.instance.jobs, self.next_op_index, strict=True):

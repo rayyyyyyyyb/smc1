@@ -88,6 +88,152 @@ def test_validator_allows_processing_duration_within_tolerance() -> None:
     assert report.ok
 
 
+def test_validator_accepts_complete_task7_process_duration_metadata() -> None:
+    interval = ScheduleInterval(
+        0,
+        2.0,
+        5.6,
+        IntervalType.PROCESS,
+        0,
+        0,
+        {"nominal_processing_time": 3.0, "degradation_factor": 1.2},
+    )
+
+    report = validate_schedule(_instance(), [interval], require_complete=False)
+
+    assert report.ok
+
+
+def test_validator_rejects_task7_process_duration_product_mismatch() -> None:
+    interval = ScheduleInterval(
+        0,
+        2.0,
+        5.5,
+        IntervalType.PROCESS,
+        0,
+        0,
+        {"nominal_processing_time": 3.0, "degradation_factor": 1.2},
+    )
+
+    report = validate_schedule(_instance(), [interval], require_complete=False)
+
+    assert any("PROCESS duration metadata mismatch" in error for error in report.errors)
+
+
+@pytest.mark.parametrize(
+    "metadata",
+    [
+        {"nominal_processing_time": 3.0},
+        {"degradation_factor": 1.2},
+    ],
+)
+def test_validator_rejects_partial_task7_process_duration_metadata(
+    metadata: dict[str, float],
+) -> None:
+    interval = ScheduleInterval(
+        0,
+        2.0,
+        5.6,
+        IntervalType.PROCESS,
+        0,
+        0,
+        metadata,
+    )
+
+    report = validate_schedule(_instance(), [interval], require_complete=False)
+
+    assert any("must contain both" in error for error in report.errors)
+
+
+@pytest.mark.parametrize(
+    "metadata",
+    [
+        {"nominal_processing_time": True, "degradation_factor": 3.6},
+        {"nominal_processing_time": 3.0, "degradation_factor": False},
+    ],
+)
+def test_validator_rejects_boolean_task7_process_duration_metadata(
+    metadata: dict[str, float],
+) -> None:
+    interval = ScheduleInterval(
+        0,
+        2.0,
+        5.6,
+        IntervalType.PROCESS,
+        0,
+        0,
+        metadata,
+    )
+
+    report = validate_schedule(_instance(), [interval], require_complete=False)
+
+    assert any("finite non-boolean numbers" in error for error in report.errors)
+
+
+def test_validator_rejects_nonfinite_task7_process_duration_metadata() -> None:
+    interval = ScheduleInterval(
+        0,
+        2.0,
+        5.6,
+        IntervalType.PROCESS,
+        0,
+        0,
+        {"nominal_processing_time": 3.0, "degradation_factor": 1.2},
+    )
+    object.__setattr__(
+        interval,
+        "metadata",
+        {"nominal_processing_time": float("nan"), "degradation_factor": 1.2},
+    )
+
+    report = validate_schedule(_instance(), [interval], require_complete=False)
+
+    assert any("finite non-boolean numbers" in error for error in report.errors)
+
+
+@pytest.mark.parametrize(
+    "metadata",
+    [
+        {"nominal_processing_time": 10**1000, "degradation_factor": 1.2},
+        {"nominal_processing_time": 3.0, "degradation_factor": 10**1000},
+    ],
+    ids=["nominal-processing-time", "degradation-factor"],
+)
+def test_validator_returns_report_for_overflowing_task7_process_metadata(
+    metadata: dict[str, int | float],
+) -> None:
+    interval = ScheduleInterval(
+        0,
+        2.0,
+        5.6,
+        IntervalType.PROCESS,
+        0,
+        0,
+        metadata,
+    )
+
+    report = validate_schedule(_instance(), [interval], require_complete=False)
+
+    assert not report.ok
+    assert any("finite non-boolean numbers" in error for error in report.errors)
+
+
+def test_validator_rejects_task7_nominal_metadata_mismatch() -> None:
+    interval = ScheduleInterval(
+        0,
+        2.0,
+        5.6,
+        IntervalType.PROCESS,
+        0,
+        0,
+        {"nominal_processing_time": 2.0, "degradation_factor": 1.8},
+    )
+
+    report = validate_schedule(_instance(), [interval], require_complete=False)
+
+    assert any("nominal processing metadata mismatch" in error for error in report.errors)
+
+
 def test_validator_reports_process_process_machine_overlap() -> None:
     intervals = [
         ScheduleInterval(0, 2.0, 5.0, IntervalType.PROCESS, 0, 0),

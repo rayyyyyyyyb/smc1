@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import math
 from collections import defaultdict
 from collections.abc import Iterable
 from dataclasses import dataclass
@@ -11,6 +12,16 @@ from smc_repro.schemas import InstanceSpec, IntervalType, ScheduleInterval
 class ValidationReport:
     ok: bool
     errors: tuple[str, ...]
+
+
+def _finite_metadata_float(value: object) -> float | None:
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        return None
+    try:
+        number = float(value)
+    except (OverflowError, ValueError, TypeError):
+        return None
+    return number if math.isfinite(number) else None
 
 
 def validate_schedule(
@@ -79,6 +90,58 @@ def validate_schedule(
                     f"{interval.machine_id} is shorter than nominal: "
                     f"{interval.duration} < {nominal_duration}"
                 )
+            has_nominal_metadata = "nominal_processing_time" in interval.metadata
+            has_degradation_metadata = "degradation_factor" in interval.metadata
+            if has_nominal_metadata != has_degradation_metadata:
+                errors.append(
+                    f"PROCESS duration metadata for operation {key} must contain both "
+                    "nominal_processing_time and degradation_factor"
+                )
+            elif has_nominal_metadata:
+                metadata_nominal = interval.metadata["nominal_processing_time"]
+                metadata_degradation = interval.metadata["degradation_factor"]
+                nominal_number = _finite_metadata_float(metadata_nominal)
+                degradation_number = _finite_metadata_float(metadata_degradation)
+                if nominal_number is None or degradation_number is None:
+                    errors.append(
+                        f"PROCESS duration metadata for operation {key} must use "
+                        "finite non-boolean numbers"
+                    )
+                else:
+                    if nominal_number <= 0.0 or degradation_number <= 0.0:
+                        errors.append(
+                            f"PROCESS duration metadata for operation {key} must use "
+                            "finite non-boolean numbers greater than zero"
+                        )
+                    else:
+                        expected_process_duration = (
+                            nominal_number * degradation_number
+                        )
+                        if not math.isclose(
+                            nominal_number,
+                            nominal_duration,
+                            rel_tol=1e-9,
+                            abs_tol=1e-9,
+                        ):
+                            errors.append(
+                                f"nominal processing metadata mismatch for operation {key}: "
+                                f"{metadata_nominal} != {nominal_duration}"
+                            )
+                        if not math.isfinite(expected_process_duration):
+                            errors.append(
+                                f"PROCESS duration metadata product for operation {key} "
+                                "must be finite"
+                            )
+                        elif not math.isclose(
+                            interval.duration,
+                            expected_process_duration,
+                            rel_tol=1e-9,
+                            abs_tol=1e-9,
+                        ):
+                            errors.append(
+                                f"PROCESS duration metadata mismatch for operation {key}: "
+                                f"{interval.duration} != {expected_process_duration}"
+                            )
         if interval.start < job.arrival_time - 1e-9:
             errors.append(
                 f"arrival violation for job {job.job_id}: {interval.start} < {job.arrival_time}"
