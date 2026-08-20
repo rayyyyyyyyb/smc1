@@ -1,0 +1,131 @@
+{
+  "schema_version": 1,
+  "items": [
+    {
+      "id": "A-001",
+      "topic": "state feature order",
+      "paper": ["crj_ave", "crj_std", "u_ave", "u_std", "tr_ave", "tr_std"],
+      "source_code": ["u_ave", "u_std", "crj_ave", "crj_std", "tr_ave", "tr_std"],
+      "resolution": {
+        "legacy_snapshot": "source_code",
+        "paper_repro": "paper",
+        "corrected_smc": "paper"
+      }
+    },
+    {
+      "id": "A-002",
+      "topic": "lower network reward context",
+      "paper": "says chosen reward one-hot but also states seven-dimensional input",
+      "source_code": "one scalar equal to upper-network max Q",
+      "resolution": {
+        "legacy_snapshot": "max_q_scalar",
+        "paper_repro": "reward_id_scalar",
+        "corrected_smc": "reward_id_scalar"
+      },
+      "future_sensitivity": ["max_q_scalar", "reward_id_one_hot"]
+    },
+    {
+      "id": "A-003",
+      "topic": "network depth",
+      "paper": "two 10-unit hidden layers in the upper network and two 50-unit hidden layers in the lower network",
+      "source_code": "three 10-unit upper hidden layers and seven 50-unit lower hidden layers",
+      "resolution": {
+        "legacy_snapshot": "source_code",
+        "paper_repro": "paper",
+        "corrected_smc": "paper"
+      }
+    },
+    {
+      "id": "A-004",
+      "topic": "partial-episode TR state",
+      "paper": "final-completion formula is not fully defined for unfinished jobs",
+      "source_code": "workload pressure using OPT plus ETL versus due window",
+      "resolution": {
+        "legacy_snapshot": "legacy_workload_pressure",
+        "paper_repro": "legacy_workload_pressure",
+        "corrected_smc": "projected_completion_tardiness_ratio"
+      },
+      "note": "paper_repro uses the only executable source interpretation for state/reward, while final evaluation uses the paper completion-time metric"
+    },
+    {
+      "id": "A-005",
+      "topic": "classic-rule decoding",
+      "paper": "FIFO/EDD/MRT/SPT/LPT names are given, but neither the machine decoder nor the exact SPT/LPT workload scope is uniquely specified",
+      "resolution": "FIFO uses arrival time; EDD uses absolute due date; MRT uses total remaining nominal work; SPT/LPT use the next operation's mean eligible-machine nominal time; all five use earliest predicted completion under the active profile and are labelled FIFO+ECT, EDD+ECT, MRT+ECT, SPT+ECT, LPT+ECT",
+      "note": "predicted completion includes setup only when the active profile enables source tool-change semantics and never samples PM/CM inside a rule score"
+    },
+    {
+      "id": "A-006",
+      "topic": "failure timing",
+      "paper_and_code": "corrective maintenance is sampled before processing and delays the operation; no within-operation interruption is implemented",
+      "resolution": {
+        "legacy_snapshot": "legacy_prestart_cdf",
+        "paper_repro": "legacy_prestart_cdf",
+        "corrected_smc": "prestart_conditional_interval_risk"
+      },
+      "note": "do not claim physical within-operation breakdown interruption in the original-conference rerun"
+    },
+    {
+      "id": "A-007",
+      "topic": "initial observation",
+      "paper": "the method section defines the state features but does not state that the first observation is an all-zero vector",
+      "source_code": "training starts from an explicit six-dimensional zero vector rather than querying the environment",
+      "resolution": {
+        "legacy_snapshot": "zero",
+        "paper_repro": "environment",
+        "corrected_smc": "environment"
+      },
+      "future_sensitivity": ["zero", "environment"]
+    },
+    {
+      "id": "A-008",
+      "topic": "paper A2 priority for unfinished jobs",
+      "paper": "uses completion/tardiness notation that is not uniquely defined for an unfinished job at a constructive decision epoch",
+      "source_code": "uses the current constructive completion proxy and a differently parenthesized urgency expression",
+      "resolution": {
+        "legacy_snapshot": "source_code",
+        "paper_repro": "use decision_time as the overdue completion proxy and reproduce the printed non-overdue expression",
+        "corrected_smc": "use decision_time as the overdue completion proxy and projected/remaining-work values for state diagnostics"
+      },
+      "note": "all three implementations must be separately named and unit-tested; do not hide this choice behind Rule 4/5/6 labels"
+    },
+    {
+      "id": "A-009",
+      "topic": "embedded local insertion",
+      "paper": "claims insertion into the earliest feasible idle slot",
+      "source_code": "sets earliest_start no earlier than the machine tail, which makes historical gaps unreachable in normal execution",
+      "resolution": {
+        "legacy_snapshot": "tail_append",
+        "paper_repro": "tail_append_with_discrepancy_recorded",
+        "corrected_smc": "tail_append"
+      },
+      "note": "retrospective insertion is deferred because health-dependent durations and maintenance would require chronological replay of later machine events; do not implement an internally inconsistent partial fix"
+    },
+    {
+      "id": "A-010",
+      "topic": "setup and tool-change time",
+      "paper": "the formulation assumes setup times are negligible and the printed B1/B2 equations do not include setup",
+      "source_code": "change_cutter() adds a machine-specific tool-change delay when either the job changes machine or the machine changes job",
+      "resolution": {
+        "legacy_snapshot": "source_tool_change",
+        "paper_repro": "none",
+        "corrected_smc": "source_tool_change"
+      },
+      "note": "paper_repro emits no SETUP interval; corrected_smc keeps explicit source tool-change costs as an audited correction"
+    },
+    {
+      "id": "A-011",
+      "topic": "urgency-level semantics",
+      "paper": "Table I states 1=highest and 3=lowest, while the experimental table caption reverses the wording",
+      "source_code": "the due-window formula and rule denominators behave as 1=high, 2=medium, 3=low",
+      "resolution": "all profiles use 1=high, 2=medium, 3=low and preserve that meaning in metadata, tests, weights, and rule formulas"
+    },
+    {
+      "id": "A-012",
+      "topic": "absolute due date versus due window",
+      "paper": "the printed equation omits the arrival-time addition",
+      "source_code": "initial jobs use arrival zero and dynamic jobs use arrival + urgency-scaled estimated work",
+      "resolution": "all stored due dates are absolute; for every job use arrival_time + (0.2 + 0.5*urgency)*estimated_work, and subtract arrival only when a relative due window is required"
+    }
+  ]
+}

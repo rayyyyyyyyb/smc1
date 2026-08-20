@@ -1,0 +1,38 @@
+schema_version: 1
+profile: corrected_smc
+state:
+  order: [crj_ave, crj_std, u_ave, u_std, tr_ave, tr_std]
+  initial_observation: environment
+  tr_feature: projected_completion_tardiness_ratio
+  utilization_feature: standard_utilization
+architecture:
+  upper_hidden: [10, 10]
+  lower_hidden: [50, 50]
+  lower_context: reward_id_scalar
+reliability:
+  failure_mode: prestart_conditional_interval_risk
+  wear_mode: effective_age
+  pm_enabled: true
+  pm_failure_threshold: 0.2
+  pm_health_threshold: 30.0
+  cm_age_repair_factor: 0.5
+  high_load_failure_bias: false
+scheduling:
+  rule_set: paper
+  setup_mode: source_tool_change
+  local_insertion: false
+  explicit_nonprocess_intervals: true
+reward:
+  tardiness_mode: paper
+  utilization_mode: paper
+training:
+  episodes: 200
+  replay_capacity: 2000
+  batch_size: 16
+  gamma: 0.95
+  learning_rate: 0.001
+  target_update_steps: 200
+  epsilon_start: 0.6
+  epsilon_end: 0.01
+  epsilon_decrement: 0.0001
+  deterministic: true
