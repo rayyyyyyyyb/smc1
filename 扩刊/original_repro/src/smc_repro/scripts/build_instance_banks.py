@@ -109,10 +109,13 @@ def build_instance_banks(
         "files": entries,
     }
     manifest_path = output_root / "manifest.json"
-    manifest_path.write_text(
-        json.dumps(manifest, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
-        encoding="utf-8",
-    )
+    rendered_manifest = json.dumps(
+        manifest,
+        ensure_ascii=False,
+        indent=2,
+        sort_keys=True,
+    ).replace("\n", "\r\n") + "\r\n"
+    manifest_path.write_bytes(rendered_manifest.encode("utf-8"))
     return manifest
 
 
